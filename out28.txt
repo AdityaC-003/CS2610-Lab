@@ -1,0 +1,7 @@
+Size of input = 65536
+
+Number of cache misses = 534
+
+Average hits per miss = 122.368912
+
+Mode is 64, with frequency 496
