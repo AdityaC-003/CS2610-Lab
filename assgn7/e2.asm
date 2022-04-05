@@ -48,13 +48,10 @@
             je print_newline
 
             mov EAX,[n]
-                            ;PutLInt [n]
-                            ;nwln
+                            
             imul EAX,10
             mov [n],EAX
-                            ;PutLInt [n]
-                            ;nwln
-
+            
             mov EAX,4
             mov EBX,[fd_out]
             mov ECX,EBP
@@ -99,8 +96,6 @@
             jmp transfer_data
 
         print_newline:
-                            ;PutLInt [n]
-                            ;nwln
             mov EAX,4
             mov EBX,[fd_out]
             mov ECX,endl
@@ -110,8 +105,6 @@
             mov EAX,[i]
             inc EAX
             mov [i],EAX
-                            ;PutLInt [i]
-                            ;nwln
             jmp repeat_read_and_write
 
         close_exit:
