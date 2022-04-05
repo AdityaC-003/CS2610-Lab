@@ -1,0 +1,10 @@
+bin/usimm input/4channel.cfg input/black input/black input/black input/black input/black input/black input/black input/black> output/black-cl1 &
+bin/usimm input/4channel.cfg input/face input/face input/face input/face input/face input/face input/face input/face> output/face-cl1 &
+bin/usimm input/4channel.cfg input/ferret input/ferret input/ferret input/ferret input/ferret input/ferret input/ferret input/ferret> output/ferret-cl1 &
+bin/usimm input/4channel.cfg input/fluid input/fluid input/fluid input/fluid input/fluid input/fluid input/fluid input/fluid> output/fluid-cl1 &
+bin/usimm input/4channel.cfg input/freq input/freq input/freq input/freq input/freq input/freq input/freq input/freq> output/freq-cl1 &
+bin/usimm input/4channel.cfg input/swapt input/swapt input/swapt input/swapt input/swapt input/swapt input/swapt input/swapt> output/swapt-cl1 &
+bin/usimm input/4channel.cfg input/stream input/stream input/stream input/stream input/stream input/stream input/stream input/stream> output/stream-cl1 &
+bin/usimm input/4channel.cfg input/comm1 input/comm1 input/comm1 input/comm1 input/comm1 input/comm1 input/comm1 input/comm1> output/comm1-cl1 &
+bin/usimm input/4channel.cfg input/comm2 input/comm2 input/comm2 input/comm2 input/comm2 input/comm2 input/comm2 input/comm2> output/comm2-cl1 &
+bin/usimm input/4channel.cfg input/MT0-canneal input/MT0-canneal input/MT0-canneal input/MT0-canneal input/MT0-canneal input/MT0-canneal input/MT0-canneal input/MT0-canneal> output/MT0-canneal-cl1 &
