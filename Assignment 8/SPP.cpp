@@ -8,12 +8,13 @@
 #define FREE true
 #define BUSY false
 
+int PC = 0;
 char inst_reg[16];
 char inst[5][16];
 bool reg_free[16];
 int buffer[5];
 bool free[5];
-int a[5],b[5],c[5];
+int a[5],b[5],c[5],opcode[5];
 
 void execute(int pipeline_stage, char instruction[])
 {
@@ -39,22 +40,25 @@ void execute(int pipeline_stage, char instruction[])
 
 void instruction_fetch(char instruction[])
 {
-    
+    //read from file
+    PC = PC + 2;
 }
 
-bool instruction_decode(char instruction[])
+pair<bool,bool> instruction_decode(char instruction[])
 {
-    int opcode=0, dest=0, source1=0, source2=0, i=15;
+    int OPCode=0, dest=0, source1=0, source2=0, i=15;
+    bool dependency = false, jump = false;
     while(i>11)             //Decoding instruction                 
     {
-        opcode = (opcode<<1) + instruction[i];
+        OPCode = (OPCode<<1) + instruction[i];
         dest = (dest<<1) + instruction[i-4];
         source1 = (source1<<1) + instruction[i-8];
         source2 = (source2<<1) + instruction[i-12];
         i--;
     }
-    
-    switch(opcode)
+    opcode[1] = OPCode;
+
+    switch(OPCode)
     {
         case 0:             //ADD instruction
         case 1:             //SUB instruction
@@ -64,88 +68,151 @@ bool instruction_decode(char instruction[])
         case 7:             //XOR instruction
         {
             if(!reg_free[source1] || !reg_free[source2])
-                return false;
+                dependency = true;
             else
             {
                 reg_free[dest] = false;
                 c[1] = dest;
                 a[1] = reg_file[source1];
                 b[1] = reg_file[source2];
-                return true;
             }
+            break;
         }
         
         case 3:             //INC instruction
         {
             if(!reg_free[dest])
-                return false;
+                dependency = true;
             else
             {
                 c[1] = dest;
                 reg_free[dest] = false;
                 a[1] = reg_file[dest];
-                return true;
             }
+            break;
         }
 
         case 6:             //NOT instruction
         {
             if(!reg_free[source1])
-                return false;
+                dependency = true;
             else
             {
                 c[1] = dest;
                 reg_free[dest] = false;
                 a[1] = reg_file[source1];
-                return true;
             }
         }
 
         case 8:             //LOAD instruction
         {
             if(!reg_free[source1])
-                return false;
+                dependency = true;
             else
             {
                 c = dest;
                 reg_free[dest] = false;
                 a = reg_file[source1];
                 b = source2;
-                return true;
             }
         }
 
         case 9:         //STORE instruction
         {
             if(!reg_free[dest] || !reg_free[source1])
-                return false;
+                dependency = true;
             else
             {
                 c = reg_file[dest];
                 a = reg_file[source1];
                 b = source2;
-                return true;
             }
         }
 
         case 10:        //JMP instruction
         {
-
+            jump = true;
+            PC = PC + (dest<<4) + source1 - ((dest&8)?(1<<8):0);
         }
         case 11:        //BEQZ instruction
         {
-            
+            if(!reg_free[dest])
+                dependency = true;
+            else
+            {
+                jump = true;
+                PC = PC + (source1<<4) + source2 - ((source1&8)?(1<<8):0);
+            }
         }
         case 15:        //HALT instruction
         {
-            
+            dependency = true;
+        }
+    }
+    return {dependency,jump};
+}
+
+void instruction_execute()
+{
+    if(opcode[1]==10 || opcode[1]==15)
+        return;
+    
+    int ALUOutput = ALU(a[1],b[1],opcode);
+    c[2] = c[1];
+    switch(opcode[1])
+    {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        {
+            b[2] = ALUOutput;
+            break;
+        }
+        case 11:
+        {
+            if(a[1]==0)
+                PC = PC + ALUOutput;
+            break;
+        }
+        case 15:
+        {
+            return;
         }
     }
 }
 
-void instruction_execute(char instruction[])
+int ALU(int opcode, int a, int b=1)
 {
-    
+    switch(opcode)
+    {
+        case 0:         //ADD
+            return a+b;
+        case 1:         //SUB
+            return a-b;
+        case 2:         //MUL
+            return a*b;
+        case 3:         //INC
+            return a+1;
+        case 4:         //AND   
+            return a&b;
+        case 5:         //OR
+            return a|b;
+        case 6:         //NOT
+            return ~a;
+        case 7:         //XOR
+            return a^b;
+        case 8:         //LOAD
+            return a+b;
+        case 9:         //STORE
+            return a+b;
+        case 11:        //JMP
+            return PC + (L2<<1);
+    }
 }
 
 void instruction_memory(char instruction[])
