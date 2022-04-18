@@ -12,9 +12,10 @@ int PC = 0;
 char inst_reg[16];
 char inst[5][16];
 bool reg_free[16];
-int buffer[5];
+int decode_a, decode_b, decode_c, decode_opcode;        //Buffer of decoded instruction
+int mem_val, mem_add;                                   //Buffer after ALU operation
+int dest_reg, dest_val;                                 //Buffer after memory operation
 bool free[5];
-int a[5],b[5],c[5],opcode[5];
 
 void execute(int pipeline_stage, char instruction[])
 {
@@ -56,7 +57,7 @@ pair<bool,bool> instruction_decode(char instruction[])
         source2 = (source2<<1) + instruction[i-12];
         i--;
     }
-    opcode[1] = OPCode;
+    decode_opcode = OPCode;
 
     switch(OPCode)
     {
@@ -72,9 +73,9 @@ pair<bool,bool> instruction_decode(char instruction[])
             else
             {
                 reg_free[dest] = false;
-                c[1] = dest;
-                a[1] = reg_file[source1];
-                b[1] = reg_file[source2];
+                decode_c = dest;
+                decode_a = reg_file[source1];
+                decode_b = reg_file[source2];
             }
             break;
         }
@@ -85,9 +86,9 @@ pair<bool,bool> instruction_decode(char instruction[])
                 dependency = true;
             else
             {
-                c[1] = dest;
+                decode_c = dest;
                 reg_free[dest] = false;
-                a[1] = reg_file[dest];
+                decode_a = reg_file[dest];
             }
             break;
         }
@@ -98,9 +99,9 @@ pair<bool,bool> instruction_decode(char instruction[])
                 dependency = true;
             else
             {
-                c[1] = dest;
+                decode_c = dest;
                 reg_free[dest] = false;
-                a[1] = reg_file[source1];
+                decode_a = reg_file[source1];
             }
         }
 
@@ -154,35 +155,26 @@ pair<bool,bool> instruction_decode(char instruction[])
 
 void instruction_execute()
 {
-    if(opcode[1]==10 || opcode[1]==15)
+    if(decode_opcode==10 || decode_opcode==15)
         return;
     
-    int ALUOutput = ALU(a[1],b[1],opcode);
-    c[2] = c[1];
-    switch(opcode[1])
+    int ALUOutput = ALU(decode_opcode, decode_a, decode_b);
+
+    if(decode_opcode < 8)
     {
-        case 0:
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-        case 6:
-        case 7:
-        {
-            b[2] = ALUOutput;
-            break;
-        }
-        case 11:
-        {
-            if(a[1]==0)
-                PC = PC + ALUOutput;
-            break;
-        }
-        case 15:
-        {
-            return;
-        }
+        mem_val = ALUOutput;
+        mem_add = decode_c;
+    }
+    else if(decode_opcode < 10)
+    {
+        mem_add = ALUOutput;
+        mem_val = decode_c;
+    }
+    else if(decode_opcode == 11)
+    {
+        if(a[1]==0)
+            PC = PC + ALUOutput;
+        //Not complete!
     }
 }
 
@@ -217,12 +209,28 @@ int ALU(int opcode, int a, int b=1)
 
 void instruction_memory(char instruction[])
 {
-    
+    if(execute_opcode == 8)
+    {
+        //LMD <--- D$[ALUOutput]
+    }
+    else if(execute_opcode == 9)
+    {
+        //D$[ALUOutput] <--- B
+    }
+    else
+    {
+        dest_reg = mem_add;
+        dest_val = mem_val;
+    }
 }
 
-void instruction_writeback(char instruction[])
+void instruction_writeback()
 {
-    
+    if(memory_opcode<=8)
+    {
+        reg_file[dest_reg] = dest_val;
+        break;
+    }
 }
 
 int main()
