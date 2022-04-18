@@ -150,7 +150,10 @@ pair<bool,bool> instruction_decode(char instruction[])
             dependency = true;
         }
     }
-    return {dependency,jump};
+    if(dependency)
+        free[1] = false;
+    if(jump)
+        free[0] = false;
 }
 
 void instruction_execute()
@@ -252,21 +255,14 @@ int main()
     int busy_sum = 0;
     do
     {
-        for (int i = 4; i >= 1; i--)
-        {
-            if(free[i] && free[i-1])
-            {
-                free[i] = false;
-                busy_sum++;
-            }
+        if(free[4])     instruction_writeback();
+        if(free[3])     instruction_memory();
+        if(free[2])     instruction_execute();
+        if(free[1])     instruction_decode();
+        if(free[0])     instruction_fetch();
 
-            if(!free[i])
-            {
-                execute(i,inst[i]);
-            }
-        }
-
-        for()
+        update_reg_status();
+        set_status();
         
         if(!i_rd.eof() && free[0])
         {
