@@ -8,7 +8,7 @@
 #define FREE true
 #define BUSY false
 
-int PC = 0;
+int PC = 0, no_of_cycles = 0, no_of_stalls = 0, no_of_instructions = 0;
 char inst_reg[16];
 char inst[5][16];
 bool reg_free[16];
@@ -233,6 +233,11 @@ void instruction_writeback()
     }
 }
 
+void update_reg_status()
+{
+    reg_file[dest_reg] = true;
+}
+
 int main()
 {
     FILE* i_rd = fopen("ICache.txt", "r");
@@ -251,21 +256,17 @@ int main()
         {
             if(free[i] && free[i-1])
             {
-                copy(inst[i-1], inst[i]);
                 free[i] = false;
                 busy_sum++;
             }
 
             if(!free[i])
             {
-                if(check_dependency(inst[i], reg_free))
-                {
-                    stall;
-                }
-                else
-                    execute(i,inst[i]);
+                execute(i,inst[i]);
             }
         }
+
+        for()
         
         if(!i_rd.eof() && free[0])
         {
