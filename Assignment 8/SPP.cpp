@@ -1,62 +1,56 @@
-#include <stdio.h>
-#include <assert.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <emmintrin.h>
+#include <bits/stdc++.h>
+
+using namespace std;
 
 #define stall continue
 #define FREE true
 #define BUSY false
 
 int PC = 0, no_of_cycles = 0, no_of_stalls = 0, no_of_instructions = 0;
-char inst_reg[16];
-char inst[5][16];
+string inst_reg;
+char inst[4];
 bool reg_free[16];
+int reg_file[16];
 int decode_a, decode_b, decode_c, decode_opcode;        //Buffer of decoded instruction
 int mem_val, mem_add;                                   //Buffer after ALU operation
 int dest_reg, dest_val;                                 //Buffer after memory operation
-bool free[5];
+bool Free[5];
+int LMD;
+ifstream i_rd, r_rd;
+ofstream i_wr, r_wr;
+fstream dp;
+bool dependency, jump;
+int running = 0, execute_opcode, memory_opcode;
+bool Skip[5];
 
-void execute(int pipeline_stage, char instruction[])
+void instruction_fetch()
 {
-    switch(pipeline_stage)
-    {
-        case 0:
-            instruction_fetch(instruction);
-            break;
-        case 1:
-            instruction_decode(instruction);
-            break;
-        case 2:
-            instruction_execute(instruction);
-            break;
-        case 3:
-            instruction_memory(instruction);
-            break;
-        case 4:
-            instruction_writeback(instruction);
-            break;
-    }
-}
-
-void instruction_fetch(char instruction[])
-{
-    //read from file
+    if(i_rd.eof()) return;
+    running++;
+    i_rd.seekg(PC*4);
+    getline(i_rd, inst_reg, '\n');
+    inst[0] = inst_reg[0], inst[1] = inst_reg[1];
+    getline(i_rd, inst_reg, '\n');
+    inst[2] = inst_reg[0], inst[3] = inst_reg[1];
     PC = PC + 2;
+    Skip[1] = false;
 }
 
-pair<bool,bool> instruction_decode(char instruction[])
+void instruction_decode()
 {
-    int OPCode=0, dest=0, source1=0, source2=0, i=15;
-    bool dependency = false, jump = false;
-    while(i>11)             //Decoding instruction                 
+    if(Skip[1])
     {
-        OPCode = (OPCode<<1) + instruction[i];
-        dest = (dest<<1) + instruction[i-4];
-        source1 = (source1<<1) + instruction[i-8];
-        source2 = (source2<<1) + instruction[i-12];
-        i--;
+        Skip[2] = true;
+        return;
     }
+    running++;
+    int OPCode=0, dest=0, source1=0, source2=0;
+    dependency = false, jump = false;
+    OPCode  = (inst[0]<='9')?inst[0]-'9':inst[0]-'a'+10;
+    dest    = (inst[1]<='9')?inst[1]-'9':inst[1]-'a'+10;
+    source1 = (inst[2]<='9')?inst[2]-'9':inst[2]-'a'+10;
+    source2 = (inst[3]<='9')?inst[3]-'9':inst[3]-'a'+10;
+
     decode_opcode = OPCode;
 
     switch(OPCode)
@@ -103,6 +97,7 @@ pair<bool,bool> instruction_decode(char instruction[])
                 reg_free[dest] = false;
                 decode_a = reg_file[source1];
             }
+            break;
         }
 
         case 8:             //LOAD instruction
@@ -111,11 +106,12 @@ pair<bool,bool> instruction_decode(char instruction[])
                 dependency = true;
             else
             {
-                c = dest;
+                decode_c = dest;
                 reg_free[dest] = false;
-                a = reg_file[source1];
-                b = source2;
+                decode_a = reg_file[source1];
+                decode_b = source2;
             }
+            break;
         }
 
         case 9:         //STORE instruction
@@ -124,16 +120,18 @@ pair<bool,bool> instruction_decode(char instruction[])
                 dependency = true;
             else
             {
-                c = reg_file[dest];
-                a = reg_file[source1];
-                b = source2;
+                decode_c = reg_file[dest];
+                decode_a = reg_file[source1];
+                decode_b = source2 - ((source2&8)?16:0);
             }
+            break;
         }
 
         case 10:        //JMP instruction
         {
             jump = true;
-            PC = PC + (dest<<4) + source1 - ((dest&8)?(1<<8):0);
+            PC = PC + (dest<<4) + source1 - ((dest&8)?(1<<8):0) - ((source1&8)?(1<<4):0);
+            break;
         }
         case 11:        //BEQZ instruction
         {
@@ -142,8 +140,10 @@ pair<bool,bool> instruction_decode(char instruction[])
             else
             {
                 jump = true;
-                PC = PC + (source1<<4) + source2 - ((source1&8)?(1<<8):0);
+                decode_a = reg_file[dest];
+                decode_c = (source1<<4) + source2 - ((source1&8)?(1<<8):0) - ((source2&8)?(1<<4):0);
             }
+            break;
         }
         case 15:        //HALT instruction
         {
@@ -151,34 +151,16 @@ pair<bool,bool> instruction_decode(char instruction[])
         }
     }
     if(dependency)
-        free[1] = false;
-    if(jump)
-        free[0] = false;
-}
-
-void instruction_execute()
-{
-    if(decode_opcode==10 || decode_opcode==15)
-        return;
-    
-    int ALUOutput = ALU(decode_opcode, decode_a, decode_b);
-
-    if(decode_opcode < 8)
     {
-        mem_val = ALUOutput;
-        mem_add = decode_c;
+        Free[0] = false;
+        Skip[2] = true;
     }
-    else if(decode_opcode < 10)
+    else if(jump)
     {
-        mem_add = ALUOutput;
-        mem_val = decode_c;
+        Free[0] = false;
+        Skip[2] = true;
     }
-    else if(decode_opcode == 11)
-    {
-        if(a[1]==0)
-            PC = PC + ALUOutput;
-        //Not complete!
-    }
+    else Skip[2] = false;
 }
 
 int ALU(int opcode, int a, int b=1)
@@ -206,19 +188,79 @@ int ALU(int opcode, int a, int b=1)
         case 9:         //STORE
             return a+b;
         case 11:        //JMP
-            return PC + (L2<<1);
+            return PC + 2*decode_c;
     }
 }
 
-void instruction_memory(char instruction[])
+void instruction_execute()
 {
+    if(Skip[2])
+    {
+        Skip[3] = true;
+        return;
+    }
+    Skip[3] = false;
+    running++;
+    if(decode_opcode==10 || decode_opcode==15)
+        return;
+    
+    int ALUOutput = ALU(decode_opcode, decode_a, decode_b);
+
+    if(decode_opcode < 8)
+    {
+        mem_val = ALUOutput;
+        mem_add = decode_c;
+    }
+    else if(decode_opcode < 10)
+    {
+        mem_add = ALUOutput;
+        mem_val = decode_c;
+    }
+    else if(decode_opcode == 11)
+    {
+        if(decode_a == 0)
+        {
+            PC = PC + ALUOutput;
+            Free[0] = Free[1] = false;
+        }
+    }
+    execute_opcode = decode_opcode;
+}
+
+void instruction_memory()
+{
+    if(Skip[3])
+    {
+        Skip[4] = true;
+        return;
+    }
+    memory_opcode = execute_opcode;
+    Skip[4] = false;
+    running++;
     if(execute_opcode == 8)
     {
         //LMD <--- D$[ALUOutput]
+        // use dp
+        dp.seekg(mem_add*4);
+        string in;
+        getline(dp, in, '\n');
+        dest_val = 10*(in[0]<='9')?(in[0]-'0'):(in[0]-'a') + (in[1]<='9')?(in[1]-'0'):(in[1]-'a');
+        if(dest_val & 8) dest_val -= 16;
+        dest_reg = mem_val;
     }
     else if(execute_opcode == 9)
     {
         //D$[ALUOutput] <--- B
+        dp.seekg(mem_add*4);
+        char low, high;
+        if(mem_val < 0) mem_val += 16;
+        if(mem_val & 15 <= 9) low = '0' + (mem_val&15);
+        else low = 'a' + (mem_val&15)-10;
+        mem_val = (mem_val^15)/16;
+        if(mem_val & 15 <= 9) high = '0' + (mem_val&15);
+        else high = 'a' + (mem_val&15)-10;
+        dp.put(high);
+        dp.put(low);
     }
     else
     {
@@ -227,53 +269,51 @@ void instruction_memory(char instruction[])
     }
 }
 
-void instruction_writeback()
+int instruction_writeback()
 {
-    if(memory_opcode<=8)
+    if(Skip[4]) return 0;
+    running++;
+    if(memory_opcode <= 8)
     {
         reg_file[dest_reg] = dest_val;
-        break;
+        return 1;
     }
+    return 0;
 }
 
 void update_reg_status()
 {
-    reg_file[dest_reg] = true;
+    reg_free[dest_reg] = true;  
 }
 
 int main()
 {
-    FILE* i_rd = fopen("ICache.txt", "r");
-    FILE* d_rd = fopen("DCache.txt", "r");
-    FILE* r_rd1 = fopen("RF.txt", "r");
-    FILE* r_rd2 = fopen("RF.txt", "r");
+    
+    i_rd.open("ICache.txt");
+    dp.open("DCache.txt");
+    r_rd.open("RF.txt");
 
-    FILE* i_wr = fopen("ICache.txt", "w");
-    FILE* d_wr = fopen("DCache.txt", "w");
-    FILE* r_wr = fopen("RF.txt", "w");
+    i_wr.open("ICache.txt");
+    r_wr.open("RF.txt");
 
     int busy_sum = 0;
+    Free[0] = true;
+    int val;
     do
     {
-        if(free[4])     instruction_writeback();
-        if(free[3])     instruction_memory();
-        if(free[2])     instruction_execute();
-        if(free[1])     instruction_decode();
-        if(free[0])     instruction_fetch();
+        running = 0;
+        if(Free[4])     val = instruction_writeback();
+        if(Free[3])     instruction_memory();
+        if(Free[2])     instruction_execute();
+        if(Free[1])     instruction_decode();
+        if(Free[0])     instruction_fetch();
 
-        update_reg_status();
-        set_status();
+        if(val) update_reg_status();
         
-        if(!i_rd.eof() && free[0])
+        if(!i_rd.eof() && Free[0]) 
         {
-            fscanf(i_rd, "%s", &inst_reg);
-            copy(inst_reg, inst[0]);
-            free[0] = false;
+            Free[0] = false;
         }
 
-    }while(/* Don't forget to add the condition */);
-
-    fprintf(fout, "\nNumber of cache misses = %d\n", m);     		// m gives the number of cache misses
-    fprintf(fout, "\nAverage hits per miss = %f\n", sum / m);  		// sum stores the sum of values in miss array, hence average = sum/m
-    fprintf(fout, "\nMode is %d, with frequency %d", mode, freq);	// prints the mode of the data with its frequency
+    }while(running);
 }
