@@ -17,7 +17,7 @@ int dest_reg, dest_val;                                 //Buffer after memory op
 bool Free[5];
 int LMD;
 ifstream i_rd, r_rd;
-ofstream i_wr, r_wr;
+ofstream r_wr;
 fstream dp;
 bool dependency, jump;
 int running = 0, execute_opcode, memory_opcode;
@@ -241,17 +241,20 @@ void instruction_memory()
     {
         //LMD <--- D$[ALUOutput]
         // use dp
-        dp.seekg(mem_add*4);
+        dp.seekg(mem_add*3);
         string in;
         getline(dp, in, '\n');
-        dest_val = 10*(in[0]<='9')?(in[0]-'0'):(in[0]-'a') + (in[1]<='9')?(in[1]-'0'):(in[1]-'a');
+        if(in[0] <= '9') dest_val += (in[0]-'0')*10;
+        else dest_val += (in[0]-'a'+10)*10;
+        if(in[1] <= '9') dest_val += in[1]-'0';
+        else dest_val += in[1]-'a'+10;
         if(dest_val & 8) dest_val -= 16;
         dest_reg = mem_val;
     }
     else if(execute_opcode == 9)
     {
         //D$[ALUOutput] <--- B
-        dp.seekg(mem_add*4);
+        dp.seekg(mem_add*3);
         char low, high;
         if(mem_val < 0) mem_val += 16;
         if(mem_val & 15 <= 9) low = '0' + (mem_val&15);
@@ -293,12 +296,26 @@ int main()
     dp.open("DCache.txt");
     r_rd.open("RF.txt");
 
-    i_wr.open("ICache.txt");
-    r_wr.open("RF.txt");
 
     int busy_sum = 0;
     Free[0] = true;
     int val;
+
+    for(int i = 0; i < 16; i++)
+    {
+        string in;
+        r_rd.seekg(3*i);
+        getline(r_rd, in, '\n');
+        cout<<"in "<<(int)in[0]<<" "<<in[1]<<endl;
+        if(in[0] <= '9') reg_file[i] += (in[0]-'0')*10;
+        else reg_file[i] += (in[0]-'a'+10)*10;
+        if(in[1] <= '9') reg_file[i] += in[1]-'0';
+        else reg_file[i] += in[1]-'a'+10;
+        // reg_file[i] = 10*(in[0]<='9')?(in[0]-'0'):(in[0]-'a'+10) + (in[1]<='9')?(in[1]-'0'):(in[1]-'a'+10);
+        if(reg_file[i] & 8) reg_file[i] -= 16;
+        cout<<reg_file[i]<<endl;
+    }
+
     do
     {
         running = 0;
@@ -316,4 +333,19 @@ int main()
         }
 
     }while(running);
+
+    for(int i = 0; i < 16; i++)
+    {
+        cout<<reg_file[i]<<endl;
+        /*r_wr.seekp(i*4);
+        char low, high;
+        if(reg_file[i] < 0) reg_file[i] += 16;
+        if(reg_file[i] & 15 <= 9) low = '0' + (reg_file[i]&15);
+        else low = 'a' + (reg_file[i]&15)-10;
+        reg_file[i] = (reg_file[i]^15)/16;
+        if(reg_file[i] & 15 <= 9) high = '0' + (reg_file[i]&15);
+        else high = 'a' + (reg_file[i]&15)-10;
+        r_wr.put(high);
+        r_wr.put(low);*/
+    }
 }
