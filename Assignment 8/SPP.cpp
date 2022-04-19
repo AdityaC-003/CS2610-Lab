@@ -25,9 +25,13 @@ bool Skip[5];
 
 void instruction_fetch()
 {
-    if(i_rd.eof()) return;
-    running++;
-    i_rd.seekg(PC*4);
+    if(i_rd.eof() || Skip[0]) 
+    {
+        Skip[1] = true;
+        return;
+    }
+    running+=1;
+    i_rd.seekg(PC*3);
     getline(i_rd, inst_reg, '\n');
     inst[0] = inst_reg[0], inst[1] = inst_reg[1];
     getline(i_rd, inst_reg, '\n');
@@ -43,14 +47,15 @@ void instruction_decode()
         Skip[2] = true;
         return;
     }
-    running++;
+    running+=10;
     int OPCode=0, dest=0, source1=0, source2=0;
     dependency = false, jump = false;
-    OPCode  = (inst[0]<='9')?inst[0]-'9':inst[0]-'a'+10;
-    dest    = (inst[1]<='9')?inst[1]-'9':inst[1]-'a'+10;
-    source1 = (inst[2]<='9')?inst[2]-'9':inst[2]-'a'+10;
-    source2 = (inst[3]<='9')?inst[3]-'9':inst[3]-'a'+10;
+    OPCode  = (inst[0]<='9')?(inst[0]-'0'):(inst[0]-'a'+10);
+    dest    = (inst[1]<='9')?(inst[1]-'0'):(inst[1]-'a'+10);
+    source1 = (inst[2]<='9')?(inst[2]-'0'):(inst[2]-'a'+10);
+    source2 = (inst[3]<='9')?(inst[3]-'0'):(inst[3]-'a'+10);
 
+    cout << "Instruction Decoded: " << OPCode << " " << dest << " " << source1 << " " << source2 << endl;
     decode_opcode = OPCode;
 
     switch(OPCode)
@@ -63,7 +68,10 @@ void instruction_decode()
         case 7:             //XOR instruction
         {
             if(!reg_free[source1] || !reg_free[source2])
+            {
+                cout << "Register "<<source1 << " " << reg_free[source1] <<"not free" << endl;
                 dependency = true;
+            }
             else
             {
                 reg_free[dest] = false;
@@ -122,7 +130,7 @@ void instruction_decode()
             {
                 decode_c = reg_file[dest];
                 decode_a = reg_file[source1];
-                decode_b = source2 - ((source2&8)?16:0);
+                decode_b = source2;
             }
             break;
         }
@@ -130,7 +138,7 @@ void instruction_decode()
         case 10:        //JMP instruction
         {
             jump = true;
-            PC = PC + (dest<<4) + source1 - ((dest&8)?(1<<8):0) - ((source1&8)?(1<<4):0);
+            PC = PC + (dest<<4) + source1 - ((dest&8)?(1<<8):0);
             break;
         }
         case 11:        //BEQZ instruction
@@ -141,13 +149,13 @@ void instruction_decode()
             {
                 jump = true;
                 decode_a = reg_file[dest];
-                decode_c = (source1<<4) + source2 - ((source1&8)?(1<<8):0) - ((source2&8)?(1<<4):0);
+                decode_c = (source1<<4) + source2 - ((source1&8)?(1<<8):0);
             }
             break;
         }
-        case 15:        //HALT instruction
+        case 15:
         {
-            dependency = true;
+            Skip[0] = true;
         }
     }
     if(dependency)
@@ -237,6 +245,7 @@ void instruction_memory()
     memory_opcode = execute_opcode;
     Skip[4] = false;
     running++;
+    dest_val = 0;
     if(execute_opcode == 8)
     {
         //LMD <--- D$[ALUOutput]
@@ -244,23 +253,26 @@ void instruction_memory()
         dp.seekg(mem_add*3);
         string in;
         getline(dp, in, '\n');
-        if(in[0] <= '9') dest_val += (in[0]-'0')*10;
-        else dest_val += (in[0]-'a'+10)*10;
+        if(in[0] <= '9') dest_val += (in[0]-'0')<<4;
+        else dest_val += (in[0]-'a'+10)<<4;
         if(in[1] <= '9') dest_val += in[1]-'0';
         else dest_val += in[1]-'a'+10;
-        if(dest_val & 8) dest_val -= 16;
+        if(dest_val & 128) dest_val -= 256;
         dest_reg = mem_val;
+        cout << dest_reg << " <- " << dest_val << endl;
     }
     else if(execute_opcode == 9)
     {
         //D$[ALUOutput] <--- B
         dp.seekg(mem_add*3);
         char low, high;
-        if(mem_val < 0) mem_val += 16;
-        if(mem_val & 15 <= 9) low = '0' + (mem_val&15);
+        if(mem_val < 0) mem_val += (1<<8);
+        cout << "Storing " << mem_val << endl;
+        if((mem_val & 15) <= 9) low = '0' + (mem_val&15);
         else low = 'a' + (mem_val&15)-10;
-        mem_val = (mem_val^15)/16;
-        if(mem_val & 15 <= 9) high = '0' + (mem_val&15);
+        //cout << int(low) << endl;
+        mem_val = mem_val>>4;
+        if((mem_val&15) <= 9) high = '0' + (mem_val&15);
         else high = 'a' + (mem_val&15)-10;
         dp.put(high);
         dp.put(low);
@@ -272,21 +284,16 @@ void instruction_memory()
     }
 }
 
-int instruction_writeback()
+void instruction_writeback()
 {
-    if(Skip[4]) return 0;
+    if(Skip[4]) return;
+
     running++;
     if(memory_opcode <= 8)
     {
         reg_file[dest_reg] = dest_val;
-        return 1;
+        reg_free[dest_reg] = true; 
     }
-    return 0;
-}
-
-void update_reg_status()
-{
-    reg_free[dest_reg] = true;  
 }
 
 int main()
@@ -298,7 +305,19 @@ int main()
 
 
     int busy_sum = 0;
+    
+    for(int i=0; i<16; i++)
+    {
+        reg_free[i] = true;
+    }
+
     Free[0] = true;
+    Skip[1] = false;
+    for(int i=1; i<5; i++)
+    {
+        Free[i] = false;
+        Skip[i] = true;
+    }
     int val;
 
     for(int i = 0; i < 16; i++)
@@ -306,34 +325,38 @@ int main()
         string in;
         r_rd.seekg(3*i);
         getline(r_rd, in, '\n');
-        cout<<"in "<<(int)in[0]<<" "<<in[1]<<endl;
-        if(in[0] <= '9') reg_file[i] += (in[0]-'0')*10;
-        else reg_file[i] += (in[0]-'a'+10)*10;
+        reg_file[i] = 0;
+        ///cout<<"in "<<(int)in[0]<<" "<<in[1]<<endl;
+        if(in[0] <= '9') reg_file[i] += (in[0]-'0')<<4;
+        else reg_file[i] += (in[0]-'a'+10)<<4;
         if(in[1] <= '9') reg_file[i] += in[1]-'0';
         else reg_file[i] += in[1]-'a'+10;
         // reg_file[i] = 10*(in[0]<='9')?(in[0]-'0'):(in[0]-'a'+10) + (in[1]<='9')?(in[1]-'0'):(in[1]-'a'+10);
-        if(reg_file[i] & 8) reg_file[i] -= 16;
-        cout<<reg_file[i]<<endl;
+        if(reg_file[i] & 128) reg_file[i] -= 256;
+        //cout<<reg_file[i]<<endl;
     }
 
+    int no_of_cycles = 0;
     do
     {
         running = 0;
-        if(Free[4])     val = instruction_writeback();
+        if(Free[4])     instruction_writeback();
         if(Free[3])     instruction_memory();
         if(Free[2])     instruction_execute();
         if(Free[1])     instruction_decode();
         if(Free[0])     instruction_fetch();
-
-        if(val) update_reg_status();
         
-        if(!i_rd.eof() && Free[0]) 
+        for(int i = 0; i < 5; i++)
         {
-            Free[0] = false;
+            Free[i] = true;
         }
-
+        if(running)
+            no_of_cycles++;
+        cout << "Cycle number" << no_of_cycles << endl;
+        cout << "Running = " << running << endl;
     }while(running);
 
+    cout << "Number of cycles = "<< no_of_cycles << endl;
     for(int i = 0; i < 16; i++)
     {
         cout<<reg_file[i]<<endl;
