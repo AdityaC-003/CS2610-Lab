@@ -1,12 +1,6 @@
-#include <bits/stdc++.h>
-
+#include <iostream>
+#include <fstream>
 using namespace std;
-
-#define stall continue
-#define FREE true
-#define BUSY false
-
-int PC = 0;
 
 class fetch_buffer
 {
@@ -48,6 +42,7 @@ class Register
     }
 }reg[16];
 
+int PC = 0;
 int arithmetic_instructions = 0, logical_instructions = 0, data_instructions = 0, control_instructions = 0, halt_instructions = 0;
 int no_of_cycles = 0, no_of_stalls = 0, no_of_instructions = 0;
 int data_stalls = 0, control_stalls = 0;
@@ -460,7 +455,7 @@ int main()
 
     do
     {
-        cout << "Cycle number = " << no_of_cycles+1 << endl;
+        // cout << "Cycle number = " << no_of_cycles+1 << endl;
         running = 0;
         instruction_writeback();
         instruction_memory();
@@ -474,7 +469,7 @@ int main()
         if(running)
             no_of_cycles++;
         
-    }while(running && no_of_cycles < 100);
+    }while(running);
 
     print_stats();
     for(int i = 0; i < 16; i++)
